@@ -79,11 +79,12 @@ public class SQLitePlugin extends CordovaPlugin {
     for (int i = 0; i < numQueries; i++) {
       JSONArray sqlQuery = queries.getJSONArray(i);
       String sql = sqlQuery.getString(0);
-      String[] bindArgs = jsonArrayToStringArray(sqlQuery.getJSONArray(1));
       try {
         if (isSelect(sql)) {
+          String[] bindArgs = jsonArrayToStringArray(sqlQuery.getJSONArray(1));
           results[i] = doSelectInBackgroundAndPossiblyThrow(sql, bindArgs, db);
         } else { // update/insert/delete
+          Object[] bindArgs = jsonArrayToObjectArray(sqlQuery.getJSONArray(1));
           if (readOnly) {
             results[i] = new SQLitePLuginResult(EMPTY_ROWS, EMPTY_COLUMNS, 0, 0, new ReadOnlyException());
           } else {
@@ -100,8 +101,33 @@ public class SQLitePlugin extends CordovaPlugin {
     return results;
   }
 
+  private void bindArguments(SQLiteStatement statement, Object[] bindArgs) {
+    for (int i = 0; i < bindArgs.length; i++) {
+      if (bindArgs[i] instanceof String) {
+        Log.d("YOLO", bindArgs[i] + " is a string");
+        statement.bindString(i + 1, (String)bindArgs[i]);
+
+      } else if (bindArgs[i] instanceof Double) {
+        Log.d("YOLO", bindArgs[i] + " is a double");
+        statement.bindDouble(i + 1, (Double)bindArgs[i]);
+
+      } else if (bindArgs[i] instanceof Long) {
+        Log.d("YOLO", bindArgs[i] + " is a long");
+        statement.bindLong(i + 1, (Long)bindArgs[i]);
+
+      } else if (bindArgs[i] instanceof byte[]) {
+        Log.d("YOLO", bindArgs[i] + " is a blob");
+        statement.bindBlob(i + 1, (byte[])bindArgs[i]);
+
+      } else if (bindArgs[i].toString() == "null") {
+        Log.d("YOLO", bindArgs[i] + " is a null");
+        statement.bindNull(i + 1);
+      }
+    }
+  }
+
   // do a update/delete/insert operation
-  private SQLitePLuginResult doUpdateInBackgroundAndPossiblyThrow(String sql, String[] bindArgs,
+  private SQLitePLuginResult doUpdateInBackgroundAndPossiblyThrow(String sql, Object[] bindArgs,
                                                                   SQLiteDatabase db) {
     debug("\"run\" query: %s", sql);
     SQLiteStatement statement = null;
@@ -109,7 +135,7 @@ public class SQLitePlugin extends CordovaPlugin {
       statement = db.compileStatement(sql);
       debug("compiled statement");
       if (bindArgs != null) {
-        statement.bindAllArgsAsStrings(bindArgs);
+        bindArguments(statement, bindArgs);
       }
       debug("bound args");
       if (isInsert(sql)) {
@@ -303,6 +329,15 @@ public class SQLitePlugin extends CordovaPlugin {
       }
     }
     return true;
+  }
+
+  private static Object[] jsonArrayToObjectArray(JSONArray jsonArray) throws JSONException {
+    int len = jsonArray.length();
+    Object[] res = new Object[len];
+    for (int i = 0; i < len; i++) {
+      res[i] = jsonArray.get(i);
+    }
+    return res;
   }
 
   private static String[] jsonArrayToStringArray(JSONArray jsonArray) throws JSONException {

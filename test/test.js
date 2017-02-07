@@ -30,4 +30,5 @@ describe('sqlite plugin test suite', function () {
   require('./test.bulk_docs.js');
   require('./test.all_docs.js');
   require('./test.replication.js');
+  require('./test.android.js');
 });
